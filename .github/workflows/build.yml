@@ -1,4 +1,4 @@
-name: Build Windows EXE
+name: Build Apps
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
+  # ============ Windows EXE ============
   build-windows:
     runs-on: windows-latest
     steps:
@@ -25,13 +26,13 @@ jobs:
       - name: Build Host Agent EXE
         run: |
           cd host
-          pyinstaller --onefile --name "mulin-host" --add-data "templates;templates" --icon NONE --console host_agent.py
+          pyinstaller --onefile --name "睦邻云印-主机端" --add-data "templates;templates" --icon NONE --console host_agent.py
           dir dist
 
       - name: Build Client EXE
         run: |
           cd client
-          pyinstaller --onefile --name "mulin-client" --add-data "templates;templates" --icon NONE --console virtual_printer.py
+          pyinstaller --onefile --name "睦邻云印-客户端" --add-data "templates;templates" --icon NONE --console virtual_printer.py
           dir dist
 
       - name: Create default configs
@@ -65,7 +66,7 @@ jobs:
         with:
           name: mulin-host-windows
           path: |
-            host/dist/mulin-host.exe
+            host/dist/睦邻云印-主机端.exe
             host/dist/config.json
 
       - name: Upload Client
@@ -73,5 +74,101 @@ jobs:
         with:
           name: mulin-client-windows
           path: |
-            client/dist/mulin-client.exe
+            client/dist/睦邻云印-客户端.exe
             client/dist/config.json
+
+  # ============ macOS DMG ============
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install websockets aiohttp flask requests watchdog
+
+      - name: Build Host Agent macOS App
+        run: |
+          cd host
+          pyinstaller --windowed --name "睦邻云印-主机端" \
+            --add-data "templates:templates" \
+            --osx-bundle-identifier "com.mulin.cloudprint.host" \
+            host_agent.py
+          ls -la dist/
+
+      - name: Build Client macOS App
+        run: |
+          cd client
+          pyinstaller --windowed --name "睦邻云印-客户端" \
+            --add-data "templates:templates" \
+            --osx-bundle-identifier "com.mulin.cloudprint.client" \
+            virtual_printer.py
+          ls -la dist/
+
+      - name: Create default configs
+        run: |
+          cat > host/dist/config.json << 'EOF'
+          {
+            "server_url": "http://47.116.123.86:8156",
+            "host_key": "",
+            "printer_name": "",
+            "auto_start": true,
+            "config_port": 9100
+          }
+          EOF
+
+          cat > client/dist/config.json << 'EOF'
+          {
+            "server_url": "http://47.116.123.86:8156",
+            "org_code": "",
+            "username": "",
+            "password": "",
+            "default_printer_id": "",
+            "default_copies": 1,
+            "config_port": 9101,
+            "spool_dir": ""
+          }
+          EOF
+
+      - name: Create Host DMG
+        run: |
+          mkdir -p host_dmg_content
+          cp -R "host/dist/睦邻云印-主机端.app" host_dmg_content/
+          cp host/dist/config.json host_dmg_content/
+          ln -s /Applications host_dmg_content/Applications
+          hdiutil create -volname "睦邻云印-主机端" \
+            -srcfolder host_dmg_content \
+            -ov -format UDZO \
+            "睦邻云印-主机端.dmg"
+          ls -la *.dmg
+
+      - name: Create Client DMG
+        run: |
+          mkdir -p client_dmg_content
+          cp -R "client/dist/睦邻云印-客户端.app" client_dmg_content/
+          cp client/dist/config.json client_dmg_content/
+          ln -s /Applications client_dmg_content/Applications
+          hdiutil create -volname "睦邻云印-客户端" \
+            -srcfolder client_dmg_content \
+            -ov -format UDZO \
+            "睦邻云印-客户端.dmg"
+          ls -la *.dmg
+
+      - name: Upload Host Agent DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: mulin-host-macos
+          path: 睦邻云印-主机端.dmg
+
+      - name: Upload Client DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: mulin-client-macos
+          path: 睦邻云印-客户端.dmg
