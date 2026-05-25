@@ -1,0 +1,77 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install websockets aiohttp flask requests pywin32 watchdog
+
+      - name: Build Host Agent EXE
+        run: |
+          cd host
+          pyinstaller --onefile --name "mulin-host" --add-data "templates;templates" --icon NONE --console host_agent.py
+          dir dist
+
+      - name: Build Client EXE
+        run: |
+          cd client
+          pyinstaller --onefile --name "mulin-client" --add-data "templates;templates" --icon NONE --console virtual_printer.py
+          dir dist
+
+      - name: Create default configs
+        shell: bash
+        run: |
+          cat > host/dist/config.json << 'EOF'
+          {
+            "server_url": "http://47.116.123.86:8156",
+            "host_key": "",
+            "printer_name": "",
+            "auto_start": true,
+            "config_port": 9100
+          }
+          EOF
+
+          cat > client/dist/config.json << 'EOF'
+          {
+            "server_url": "http://47.116.123.86:8156",
+            "org_code": "",
+            "username": "",
+            "password": "",
+            "default_printer_id": "",
+            "default_copies": 1,
+            "config_port": 9101,
+            "spool_dir": ""
+          }
+          EOF
+
+      - name: Upload Host Agent
+        uses: actions/upload-artifact@v4
+        with:
+          name: mulin-host-windows
+          path: |
+            host/dist/mulin-host.exe
+            host/dist/config.json
+
+      - name: Upload Client
+        uses: actions/upload-artifact@v4
+        with:
+          name: mulin-client-windows
+          path: |
+            client/dist/mulin-client.exe
+            client/dist/config.json
