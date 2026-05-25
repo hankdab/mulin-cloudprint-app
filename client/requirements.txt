@@ -1,0 +1,5 @@
+flask>=3.0.0
+requests>=2.31.0
+websockets>=12.0
+watchdog>=3.0.0
+pywin32>=306;platform_system=="Windows"
